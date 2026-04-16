@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Révisions AIS – Administrateur d'Infrastructures Sécurisées</title>
+<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiUsOpdmlzaW9ucyBBSVMiLCJzaG9ydF9uYW1lIjoiQUlTIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiI0ZERjZGMCIsInRoZW1lX2NvbG9yIjoiIzhCNkY0NyJ9">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FDF6F0; --bg-card: #FFFFFF; --bg-card-alt: #F0E6DA;
+    --accent: #8B6F47; --accent-light: #C4A882; --accent-dark: #5C4A31;
+    --text: #3D2E1F; --text-light: #8B7B6B; --text-lighter: #B5A898;
+    --success: #6B8E5A; --error: #C4534A; --warning: #D4A03C;
+    --shadow: 0 2px 16px rgba(93,74,49,0.08); --shadow-lg: 0 8px 32px rgba(93,74,49,0.12);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: 'DM Sans', 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  #app { max-width: 480px; margin: 0 auto; min-height: 100vh; position: relative; overflow: hidden; }
+  .screen { display: none; padding: 0 20px 60px; }
+  .screen.active { display: block; animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes slideUp { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes pop { 0%{transform:scale(0.8);opacity:0;} 50%{transform:scale(1.05);} 100%{transform:scale(1);opacity:1;} }
+  @keyframes shakeX { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+  @keyframes slideDown { from{transform:translateY(-20px);opacity:0;} to{transform:translateY(0);opacity:1;} }
+  .btn { border: none; cursor: pointer; font-family: inherit; transition: all 0.2s ease; }
+  .btn:active { transform: scale(0.96); }
+  .card-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; cursor: pointer; }
+  .card-hover:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+  .option-btn {
+    width: 100%; text-align: left; padding: 16px 20px; border-radius: 14px;
+    background: var(--bg-card); border: 2px solid var(--bg-card-alt);
+    font-size: 15px; color: var(--text); font-family: inherit;
+    cursor: pointer; transition: all 0.25s ease; line-height: 1.4;
+  }
+  .option-btn:hover:not(:disabled) { border-color: var(--accent-light); background: #FAF4ED; }
+  .option-btn.correct { border-color: var(--success); background: #EFF5EC; color: var(--success); }
+  .option-btn.wrong { border-color: var(--error); background: #FAEFEE; color: var(--error); animation: shakeX 0.4s ease; }
+  .option-btn:disabled { cursor: default; }
+  .progress-bar { width:100%; height:8px; border-radius:8px; background:var(--bg-card-alt); overflow:hidden; }
+  .progress-bar-inner { height:100%; border-radius:8px; background:var(--accent); transition:width 0.6s cubic-bezier(.4,0,.2,1); }
+  ::-webkit-scrollbar { display: none; }
+  /* Modal */
+  .modal-overlay { position:fixed; inset:0; background:rgba(61,46,31,0.5); z-index:100; display:none; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+  .modal-overlay.open { display:flex; }
+  .modal-box { background:var(--bg-card); border-radius:24px; padding:28px; max-width:340px; width:90%; animation:pop 0.3s ease; box-shadow:var(--shadow-lg); }
+  /* Explanation box */
+  .explanation-box { border-radius:14px; padding:16px 18px; margin-top:14px; animation:slideDown 0.3s ease; }
+  .explanation-box.wrong-explain { background:#FFF4F4; border:1.5px solid var(--error); }
+  /* Download button */
+  .dl-btn { position:fixed; bottom:20px; right:20px; z-index:50; width:44px; height:44px; border-radius:50%; background:var(--accent-dark); color:#FDF6F0; font-size:18px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 16px rgba(0,0,0,0.2); cursor:pointer; border:none; transition:all 0.2s; }
+  .dl-btn:hover { transform:scale(1.1); }
+  /* Offline badge */
+  .offline-badge { position:fixed; top:0; left:50%; transform:translateX(-50%); background:var(--warning); color:#fff; font-size:12px; padding:4px 14px; border-radius:0 0 10px 10px; font-weight:600; z-index:200; display:none; }
+  .offline-badge.show { display:block; }
+</style>
+</head>
+<body>
+
+<!-- Offline badge -->
+<div class="offline-badge" id="offlineBadge">📴 Hors-ligne – progression sauvegardée</div>
+
+<!-- Download button -->
+<button class="dl-btn" onclick="downloadApp()" title="Télécharger l'app">⬇</button>
+
+<!-- Quit modal -->
+<div class="modal-overlay" id="quitModal">
+  <div class="modal-box">
+    <div style="font-size:36px;text-align:center;margin-bottom:12px">⏸</div>
+    <h3 style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:var(--accent-dark);text-align:center;margin-bottom:8px">Quitter l'examen ?</h3>
+    <p style="color:var(--text-light);font-size:14px;text-align:center;line-height:1.5;margin-bottom:20px">
+      Ta progression partielle sera sauvegardée. Tu pourras reprendre plus tard.
+    </p>
+    <div id="quitScore" style="background:var(--bg-card-alt);border-radius:12px;padding:12px 16px;text-align:center;margin-bottom:16px;font-size:14px;color:var(--text)"></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn" onclick="closeQuitModal()" style="flex:1;padding:14px;border-radius:12px;background:var(--bg-card-alt);color:var(--text);font-size:14px;font-weight:600">Continuer</button>
+      <button class="btn" onclick="confirmQuit()" style="flex:1;padding:14px;border-radius:12px;background:var(--error);color:#fff;font-size:14px;font-weight:600">Quitter</button>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <!-- HOME -->
+  <div id="screen-home" class="screen active" style="padding:0 20px 60px"></div>
+
+  <!-- CHAPTERS -->
+  <div id="screen-chapters" class="screen" style="padding:0 20px 60px"></div>
+
+  <!-- GROUPS -->
+  <div id="screen-groups" class="screen" style="padding:0 20px 60px"></div>
+
+  <!-- QUIZ -->
+  <div id="screen-quiz" class="screen" style="padding:0 20px 60px"></div>
+
+  <!-- RESULTS -->
+  <div id="screen-results" class="screen" style="padding:0 20px 60px"></div>
+</div>
+
+<script>
+// ─── DATA ─────────────────────────────────────────────────────────────────────
+const chapters = [
+  {
+    id: "osi", title: "Modèle OSI & Protocoles", icon: "🌐",
+    questions: [
+      { q: "Combien de couches comporte le modèle OSI ?", options: ["5","6","7","8"], answer: 2, explain: "Le modèle OSI comporte exactement 7 couches : Physique, Liaison, Réseau, Transport, Session, Présentation, Application. Ce n'est pas 5 ni 8." },
+      { q: "Quelle couche du modèle OSI traite les bits ?", options: ["Couche 2 - Liaison","Couche 1 - Physique","Couche 3 - Réseau","Couche 4 - Transport"], answer: 1, explain: "La couche 1 (Physique) gère la transmission des bits bruts sur le support physique (câbles, fibres, signaux radio). La couche 2 gère des trames, pas des bits." },
+      { q: "Sous quelle forme circulent les données à la couche 2 ?", options: ["Paquets","Segments","Trames (frames)","Bits"], answer: 2, explain: "La couche 2 (Liaison de données) encapsule les données en trames (frames) contenant les adresses MAC. Les paquets sont couche 3, les segments couche 4." },
+      { q: "La couche 3 du modèle OSI transporte des :", options: ["Segments TCP","Trames Ethernet","Paquets IP","Messages UDP"], answer: 2, explain: "La couche 3 (Réseau) travaille avec des paquets IP qui contiennent les adresses IP source/destination. Les trames sont couche 2, les segments TCP sont couche 4." },
+      { q: "Quelle couche gère SSL/TLS ?", options: ["Couche 4 - Transport","Couche 5 - Session","Couche 6 - Présentation","Couche 7 - Application"], answer: 2, explain: "SSL/TLS est géré par la couche 6 (Présentation) car il assure le chiffrement, le formatage et la conversion des données. Ce n'est pas la couche Transport (qui gère TCP/UDP)." },
+      { q: "Que gère la couche 6 (Présentation) ?", options: ["Routage IP","Type, codec, compression, MIME","Établissement de session","Contrôle de flux"], answer: 1, explain: "La couche 6 s'occupe du format des données : type MIME, codec, compression, chiffrement (SSL/TLS). Le routage IP est couche 3, la session est couche 5." },
+      { q: "FTP se situe à quelle couche OSI ?", options: ["Couche 5","Couche 6","Couche 7 - Application","Couche 4"], answer: 2, explain: "FTP est un protocole applicatif (couche 7) car il interagit directement avec les applications utilisateur. Il utilise TCP en dessous (couche 4) mais lui-même est couche 7." },
+      { q: "Quelle est la taille de l'en-tête Ethernet ?", options: ["12 octets","14 octets","16 octets","20 octets"], answer: 1, explain: "L'en-tête Ethernet fait 14 octets : 6 octets MAC destination + 6 octets MAC source + 2 octets EtherType. Les 12 octets correspondraient uniquement aux deux adresses MAC." },
+      { q: "Quelle couche utilise la table ARP ?", options: ["Couche 2","Couche 3 - Réseau","Couche 4","Couche 1"], answer: 1, explain: "ARP (Address Resolution Protocol) fonctionne à la couche 3 car il résout des adresses IP (couche 3) en adresses MAC (couche 2). C'est un pont entre les couches 2 et 3." },
+      { q: "Quel est le format des données en couche 4 pour TCP ?", options: ["Paquets","Segments","Trames","Datagrammes"], answer: 1, explain: "TCP (couche 4) encapsule les données en segments avec un numéro de séquence et d'accusé de réception. Les datagrammes sont pour UDP, les paquets pour IP (couche 3)." },
+      { q: "Quel protocole est dit 'orienté connexion' ?", options: ["UDP","ICMP","TCP","ARP"], answer: 2, explain: "TCP établit une connexion via le 3-way handshake (SYN, SYN-ACK, ACK) avant tout transfert, garantissant la fiabilité. UDP est sans connexion : il envoie sans vérifier." },
+      { q: "Quel protocole est plus adapté au temps réel ?", options: ["TCP","UDP","ICMP","IGMP"], answer: 1, explain: "UDP est préféré en temps réel (voix, vidéo, jeux) car il n'a pas de mécanisme de retransmission ni d'accusé de réception. TCP introduirait trop de latence dans ces cas." },
+      { q: "Quelle est la taille maximale d'une requête DNS sur UDP ?", options: ["256 octets","512 octets","1024 octets","1500 octets"], answer: 1, explain: "Historiquement, le RFC 1035 limite les messages DNS sur UDP à 512 octets. Au-delà, DNS bascule sur TCP. EDNS0 a étendu cette limite mais 512 reste la référence classique." },
+      { q: "Quelle est la valeur MTU de base ?", options: ["1000 octets","1500 octets","9000 octets","512 octets"], answer: 1, explain: "Le MTU (Maximum Transmission Unit) standard Ethernet est de 1500 octets. Les 9000 octets correspondent aux Jumbo Frames utilisées en datacenter pour optimiser les performances." },
+      { q: "Qu'est-ce qu'une Jumbo Frame ?", options: ["Trame de 1500 octets","Trame de 9000-9014 octets","Trame de 512 octets","Trame sans en-tête"], answer: 1, explain: "Une Jumbo Frame est une trame Ethernet étendue à 9000-9014 octets (contre 1500 standard). Elle réduit l'overhead CPU en datacenter en transportant plus de données par trame." },
+    ]
+  },
+  {
+    id: "reseau", title: "Réseau & Routage", icon: "🔀",
+    questions: [
+      { q: "Quel protocole de routage est de type 'link-state' ?", options: ["RIP","EIGRP","OSPF","BGP"], answer: 2, explain: "OSPF est un protocole link-state : chaque routeur connaît la topologie complète du réseau et calcule le meilleur chemin via l'algorithme Dijkstra. RIP est distance-vector (beaucoup plus limité)." },
+      { q: "BGP est un protocole de routage de type :", options: ["Interior Gateway Protocol","Exterior Gateway Protocol","Link-state","Distance-vector interne"], answer: 1, explain: "BGP est l'unique EGP (Exterior Gateway Protocol) utilisé sur Internet pour router entre systèmes autonomes (AS). OSPF et RIP sont des IGP (intra-domaine)." },
+      { q: "Qu'est-ce qu'un VRF ?", options: ["Virtual Routing and Forwarding","Virtual Router Firewall","VLAN Routing Framework","Virtual Redundancy Framework"], answer: 0, explain: "VRF (Virtual Routing and Forwarding) crée des tables de routage virtuellement séparées sur un même routeur physique, permettant l'isolation du trafic comme avec plusieurs routeurs." },
+      { q: "Qu'est-ce que le FQDN ?", options: ["Fully Qualified Domain Name","Fast Query Domain Network","Firewall Qualified DNS","Full Quality Data Name"], answer: 0, explain: "FQDN (Fully Qualified Domain Name) est le nom de domaine complet incluant tous les niveaux : par ex. 'mail.google.com.' (avec le point final désignant la racine DNS)." },
+      { q: "Quelle est la différence entre DNS récursif et itératif ?", options: ["Récursif = le serveur résout tout, Itératif = il renvoie vers un autre serveur","Récursif = plus rapide, Itératif = plus lent","Aucune différence","Récursif = UDP, Itératif = TCP"], answer: 0, explain: "En mode récursif, le serveur DNS fait tout le travail et retourne la réponse finale. En mode itératif, il renvoie simplement vers un autre serveur DNS plus compétent." },
+      { q: "Que diffuse le protocole Spanning Tree ?", options: ["Paquets ICMP","Trames BPDU","Requêtes ARP","Messages SNMP"], answer: 1, explain: "STP (Spanning Tree Protocol) échange des trames BPDU (Bridge Protocol Data Unit) pour détecter les boucles réseau et désactiver les liens redondants temporairement." },
+      { q: "L'adresse MAC est codée sur combien de bits ?", options: ["32 bits","48 bits","64 bits","128 bits"], answer: 1, explain: "Une adresse MAC fait 48 bits (6 octets) en hexadécimal. Les 32 bits correspondent aux adresses IPv4, les 128 bits à IPv6." },
+      { q: "Les 3 premiers octets d'une adresse MAC identifient :", options: ["L'hôte","Le réseau","Le fabricant (OUI)","Le VLAN"], answer: 2, explain: "Les 3 premiers octets (24 bits) forment l'OUI (Organizationally Unique Identifier) attribué par l'IEEE au fabricant. Les 3 derniers identifient l'interface unique du fabricant." },
+      { q: "Le protocole 802.1Q sert à :", options: ["Le chiffrement WiFi","Le tagging VLAN sur les trunks","La QoS","L'authentification réseau"], answer: 1, explain: "802.1Q est la norme IEEE pour le tagging VLAN : il insère un tag de 4 octets dans la trame Ethernet pour indiquer l'appartenance VLAN sur les liens trunk." },
+      { q: "Qu'est-ce qu'un trunk réseau ?", options: ["Un lien entre deux hôtes","Un lien transportant plusieurs VLANs","Un câble fibre optique","Un tunnel VPN"], answer: 1, explain: "Un trunk est un lien (généralement entre switches) qui transporte les trames de plusieurs VLANs simultanément grâce au tagging 802.1Q. Un lien access n'appartient qu'à un seul VLAN." },
+      { q: "Qu'est-ce que le LAG ?", options: ["Link Aggregation Group","Local Area Gateway","Logical Access Gate","LAN Aggregation"], answer: 0, explain: "LAG (Link Aggregation Group) regroupe plusieurs liens physiques en un seul lien logique pour augmenter la bande passante et la redondance, standardisé par LACP (802.3ad)." },
+      { q: "Quel protocole normalise l'agrégation de liens ?", options: ["STP","LACP","OSPF","BGP"], answer: 1, explain: "LACP (Link Aggregation Control Protocol, 802.3ad/802.1AX) négocie dynamiquement l'agrégation de liens entre deux équipements. STP gère les boucles, pas l'agrégation." },
+      { q: "Qu'est-ce que le DHCP Snooping ?", options: ["Un serveur DHCP alternatif","Un mécanisme de sécurité filtrant les réponses DHCP","Un protocole de routage","Un type de NAT"], answer: 1, explain: "DHCP Snooping est une fonctionnalité de switch qui bloque les réponses DHCP venant de ports non autorisés (untrusted), prévenant les serveurs DHCP malveillants (rogue DHCP)." },
+      { q: "Qu'est-ce qu'un Private VLAN ?", options: ["Un VLAN chiffré","Un VLAN isolant les ports au sein d'un même VLAN","Un VLAN sans routage","Un VLAN caché"], answer: 1, explain: "Les Private VLANs (PVLAN) subdivisent un VLAN en ports isolés (ne communiquent qu'avec le promiscuous port) et communautaires, idéal pour isoler des serveurs en DMZ." },
+      { q: "Différence entre trame tagged et untagged ?", options: ["Tagged = contient un tag VLAN 802.1Q, Untagged = pas de tag","Tagged = chiffrée, Untagged = en clair","Aucune différence","Tagged = TCP, Untagged = UDP"], answer: 0, explain: "Une trame tagged contient un en-tête 802.1Q de 4 octets identifiant le VLAN (utilisé sur les trunks). Untagged = trame Ethernet standard sans tag (utilisée sur les ports access)." },
+      { q: "Quelle est la différence entre NAT et Bridge ?", options: ["NAT traduit les adresses IP, Bridge relie deux réseaux au niveau 2","NAT = couche 2, Bridge = couche 3","Aucune différence","NAT = chiffrement, Bridge = routage"], answer: 0, explain: "NAT (couche 3) modifie les adresses IP des paquets pour la translation. Un bridge (couche 2) relie deux segments réseau de façon transparente sans modifier les adresses IP." },
+      { q: "Le port 3389 est utilisé par :", options: ["SSH","RDP (Bureau à distance)","HTTP","FTP"], answer: 1, explain: "Le port 3389 est le port par défaut de RDP (Remote Desktop Protocol) pour le bureau à distance Windows. SSH utilise le port 22, HTTP le 80, FTP les 20/21." },
+      { q: "Quelle est la différence entre analogique et numérique ?", options: ["Analogique = signal continu, Numérique = signal discret (0 et 1)","Analogique = plus rapide","Numérique = signal continu","Aucune différence"], answer: 0, explain: "Un signal analogique est continu et peut prendre une infinité de valeurs (ex: ligne téléphonique classique). Un signal numérique est discret : il ne représente que des 0 et des 1." },
+      { q: "Quelle est la différence entre débit et bande passante ?", options: ["Bande passante = capacité max théorique, Débit = transfert réel","Aucune différence","Débit = capacité max, Bande passante = transfert réel","Les deux mesurent la même chose"], answer: 0, explain: "La bande passante est la capacité maximale théorique d'un lien (ex: 1 Gbps). Le débit (throughput) est le taux de transfert réel observé, toujours inférieur en pratique à cause de l'overhead." },
+    ]
+  },
+  {
+    id: "securite", title: "Sécurité Réseau & Pare-feu", icon: "🛡️",
+    questions: [
+      { q: "pfSense est :", options: ["Un antivirus","Un pare-feu open source","Un serveur DNS","Un switch manageable"], answer: 1, explain: "pfSense est une distribution FreeBSD open source utilisée comme pare-feu/routeur. Il offre NAT, VPN, DHCP, IDS/IPS via Snort/Suricata. Ce n'est pas un antivirus ni un switch." },
+      { q: "Que fait un proxy ?", options: ["Il route les paquets","Il fait office d'intermédiaire pour les requêtes client","Il chiffre les données","Il attribue des adresses IP"], answer: 1, explain: "Un proxy (forward proxy) est un intermédiaire côté client : il transmet les requêtes des clients vers Internet, peut filtrer/cacher le contenu. Le routage IP est une fonction du routeur." },
+      { q: "Que fait un reverse proxy ?", options: ["Il protège les clients","Il fait office d'intermédiaire côté serveur","Il bloque les VPN","Il crée des VLAN"], answer: 1, explain: "Un reverse proxy (ex: HAProxy, Nginx) se place devant les serveurs web pour répartir la charge, masquer l'infrastructure interne et absorber les attaques. Il protège les serveurs, pas les clients." },
+      { q: "CrowdSec est un outil de :", options: ["Virtualisation","Sécurité collaborative (IPS/IDS)","Gestion de projet","Sauvegarde"], answer: 1, explain: "CrowdSec est un IPS/IDS collaboratif open source qui partage les IP malveillantes entre sa communauté. Il analyse les logs et bloque automatiquement les attaquants identifiés collectivement." },
+      { q: "Wazuh est un :", options: ["Pare-feu","SIEM (Security Information and Event Management)","Serveur DNS","Hyperviseur"], answer: 1, explain: "Wazuh est un SIEM open source qui collecte, agrège et analyse les logs de sécurité de toute l'infrastructure pour détecter les incidents. Ce n'est pas un pare-feu mais un outil d'analyse." },
+      { q: "Que contient la base Exploit DB ?", options: ["Des firmwares","Des vulnérabilités et exploits connus","Des certificats SSL","Des adresses IP publiques"], answer: 1, explain: "Exploit-DB est une base de données publique d'exploits et de vulnérabilités référencées (CVE). Elle est utilisée par les pentesters pour identifier des failles connues sur des systèmes ciblés." },
+      { q: "La matrice MITRE ATT&CK décrit :", options: ["Les protocoles réseau","Les techniques, tactiques et procédures d'attaque","Les normes ISO","Les couches OSI"], answer: 1, explain: "MITRE ATT&CK est un framework qui catalogue les TTPs (Tactics, Techniques, Procedures) utilisées par les attaquants réels. Il permet de modéliser les menaces et tester les défenses." },
+      { q: "Maltego est un outil de :", options: ["Virtualisation","OSINT et cartographie de relations","Pare-feu","Supervision"], answer: 1, explain: "Maltego est un outil d'OSINT (Open Source Intelligence) qui visualise graphiquement les relations entre entités (domaines, IPs, personnes, organisations). Idéal pour la reconnaissance." },
+      { q: "Nessus est un outil de :", options: ["Scan de vulnérabilités","Gestion de VLAN","Routage dynamique","Chiffrement"], answer: 0, explain: "Nessus (Tenable) est l'un des scanners de vulnérabilités les plus utilisés au monde. Il détecte les failles de configuration, les CVE non patchés et les mauvaises pratiques de sécurité." },
+      { q: "Fail2ban sert à :", options: ["Créer des VPN","Bloquer les IP après des tentatives de connexion échouées","Monitorer le réseau","Gérer les certificats"], answer: 1, explain: "Fail2ban analyse les logs système (auth.log, nginx...) et bannit automatiquement les IP qui effectuent trop de tentatives de connexion échouées (brute force). Extrêmement efficace contre le SSH." },
+      { q: "Pegasus est :", options: ["Un protocole réseau","Un logiciel espion (spyware)","Un outil de sauvegarde","Un hyperviseur"], answer: 1, explain: "Pegasus est un spyware développé par NSO Group qui peut infecter iOS et Android sans interaction de l'utilisateur (zero-click). Il accède aux messages, caméra, micro et position GPS." },
+      { q: "Qu'est-ce que le KRACK Attack ?", options: ["Attaque sur WPA2 WiFi","Attaque DDoS","Injection SQL","Attaque man-in-the-middle sur DNS"], answer: 0, explain: "KRACK (Key Reinstallation Attack) est une vulnérabilité dans le protocole WPA2 WiFi qui permet de réinstaller une clé de chiffrement déjà utilisée, permettant le déchiffrement du trafic." },
+      { q: "Pourquoi isoler les serveurs en DMZ avec Private VLAN ?", options: ["Pour la performance","Pour éviter les attaques par rebond","Pour le routage","Pour le DHCP"], answer: 1, explain: "Les Private VLANs en DMZ empêchent qu'un serveur compromis communique avec les autres serveurs du même VLAN. Sans cela, un attaquant peut pivoter (rebond) vers d'autres serveurs internes." },
+      { q: "Où sont stockés les mots de passe sous Linux ?", options: ["/etc/passwd","/etc/shadow","/var/log/auth","/root/passwords"], answer: 1, explain: "/etc/shadow contient les mots de passe hashés (SHA-512 par défaut) et n'est lisible que par root. /etc/passwd est lisible par tous mais ne contient plus les hashes depuis longtemps." },
+      { q: "Pourquoi faut-il sécuriser les DNS dans nos LAN ?", options: ["Pour la vitesse","Un attaquant pourrait visualiser toute la cartographie réseau","Pour le routage","Pour les VLAN"], answer: 1, explain: "Les requêtes DNS internes révèlent les noms d'hôtes, les services et la topologie réseau. Un DNS compromis ou espionné permet à un attaquant de cartographier entièrement le SI." },
+      { q: "Les injections SQL et attaques XSS ciblent :", options: ["Les routeurs","Les sites web","Les switchs","Les hyperviseurs"], answer: 1, explain: "SQLi et XSS (Cross-Site Scripting) sont des attaques ciblant les applications web. SQLi injecte du code SQL dans les bases de données, XSS injecte du JavaScript malveillant dans les pages." },
+      { q: "Pourquoi déporter tous les logs ?", options: ["Pour la performance","Pour la sécurité et l'intégrité des preuves","Pour le stockage","Pour le routage"], answer: 1, explain: "En cas de compromission, un attaquant efface ses traces sur le système. Des logs centralisés sur un serveur distant (SIEM) préservent les preuves et permettent l'investigation forensique." },
+      { q: "Qu'est-ce que le Zero Trust ?", options: ["Faire confiance au réseau interne","Ne jamais faire confiance, toujours vérifier","Un type de VPN","Un protocole de routage"], answer: 1, explain: "Zero Trust est un modèle de sécurité qui remet en cause la confiance implicite accordée au réseau interne. Chaque accès doit être authentifié et autorisé, peu importe la localisation." },
+      { q: "Que faut-il superviser en sécurité ?", options: ["Uniquement les serveurs","Tout ce qu'on considère sécurisé (clusters, pare-feu...)","Uniquement le WAN","Les imprimantes seulement"], answer: 1, explain: "La supervision doit couvrir l'ensemble de l'infrastructure : firewalls, switches, hyperviseurs, clusters, serveurs. Une supervision partielle laisse des angles morts exploitables par les attaquants." },
+      { q: "VACL sert à :", options: ["Filtrer le trafic au sein d'un VLAN","Créer des VLAN","Router entre VLAN","Chiffrer les VLAN"], answer: 0, explain: "Les VLAN ACL (VACL) appliquent des règles de filtrage au trafic intra-VLAN (entre hôtes du même VLAN), là où les ACL classiques ne fonctionnent que sur le trafic inter-VLAN routé." },
+    ]
+  },
+  {
+    id: "vpn", title: "VPN & Tunnels", icon: "🔒",
+    questions: [
+      { q: "IPSec est un tunnel de quel niveau ?", options: ["Niveau 2","Niveau 3","Niveau 4","Niveau 7"], answer: 1, explain: "IPSec opère au niveau 3 (couche réseau) en chiffrant/authentifiant les paquets IP. Il est donc transparent pour les applications. SSL/TLS travaille lui en couche 4-7." },
+      { q: "Qu'est-ce qu'un VPN Roadwarrior ?", options: ["VPN site-à-site","VPN pour utilisateur nomade individuel","VPN entre deux LAN","VPN sur couche 2"], answer: 1, explain: "Le mode Roadwarrior (ou nomade) permet à un utilisateur mobile de se connecter individuellement au réseau d'entreprise depuis n'importe quel accès Internet. C'est le VPN du télétravailleur." },
+      { q: "Qu'est-ce qu'un VPN Nomade ?", options: ["VPN fixe entre deux sites","VPN pour utilisateurs mobiles/distants","VPN sans chiffrement","VPN sur fibre optique"], answer: 1, explain: "Un VPN nomade (client-to-site) connecte des utilisateurs individuels distants au réseau d'entreprise. Différent du VPN site-to-site qui connecte deux réseaux fixes en permanence." },
+      { q: "GRE est un protocole de :", options: ["Chiffrement","Encapsulation (tunnel)","Routage","Authentification"], answer: 1, explain: "GRE (Generic Routing Encapsulation) crée des tunnels en encapsulant n'importe quel protocole réseau dans des paquets IP. Attention : GRE seul ne chiffre pas les données !" },
+      { q: "L2TP opère à quelle couche ?", options: ["Couche 2","Couche 3","Couche 4","Couche 7"], answer: 0, explain: "L2TP (Layer 2 Tunneling Protocol) crée des tunnels au niveau de la couche 2, permettant de transporter des trames de couche 2 sur un réseau IP. Il est souvent combiné avec IPSec pour le chiffrement." },
+      { q: "IKE Phase 1 sert à :", options: ["Transférer les données","Négocier les Security Associations (SA)","Fermer le tunnel","Scanner les ports"], answer: 1, explain: "IKE Phase 1 établit le canal sécurisé de contrôle en négociant les algorithmes de chiffrement et en s'authentifiant mutuellement. La Phase 2 négocie ensuite les SA pour le trafic réel (IPSec)." },
+      { q: "Que signifie SPD dans le contexte IPSec ?", options: ["Security Policy Database","Secure Protocol Definition","Session Path Discovery","System Process Daemon"], answer: 0, explain: "La SPD (Security Policy Database) définit QUELS trafics doivent être protégés par IPSec et comment. La SAD (Security Association Database) stocke les SA actives résultant de la négociation." },
+      { q: "Que signifie SAD dans le contexte IPSec ?", options: ["Security Association Database","Secure Access Directory","System Authentication Data","Session Activity Database"], answer: 0, explain: "La SAD (Security Association Database) stocke les Security Associations actives d'IPSec : les clés, algorithmes et paramètres convenus. La SPD définit les politiques, la SAD les instances actives." },
+      { q: "ISAKMP est utilisé pour :", options: ["Le routage","La négociation de clés et associations de sécurité","Le monitoring","La sauvegarde"], answer: 1, explain: "ISAKMP (Internet Security Association and Key Management Protocol) définit le framework pour négocier, établir et gérer les associations de sécurité IPSec. IKE implémente ISAKMP en pratique." },
+      { q: "Un tunnel est-il toujours chiffré ?", options: ["Oui toujours","Non, pas forcément (ex: GRE sur Cisco)","Seulement avec IPSec","Seulement en IPv6"], answer: 1, explain: "Un tunnel est juste un mécanisme d'encapsulation. GRE par exemple crée un tunnel sans chiffrement. Le chiffrement est une couche supplémentaire (IPSec, TLS...) ajoutée par-dessus." },
+      { q: "MPLS est utilisé pour :", options: ["Le chiffrement","La commutation de labels dans les réseaux opérateurs","La supervision","Le DHCP"], answer: 1, explain: "MPLS (Multi-Protocol Label Switching) accélère le routage en substituant les décisions IP par des labels prédéfinis, principalement dans les backbones opérateurs télécom." },
+      { q: "Qu'est-ce que le Host-to-Host VPN ?", options: ["VPN entre deux hôtes individuels","VPN entre deux réseaux","VPN entre un hôte et un réseau","VPN sans chiffrement"], answer: 0, explain: "Host-to-Host VPN crée un tunnel sécurisé directement entre deux machines individuelles, sans impliquer de passerelle ou de réseau entier. Utile pour sécuriser une communication point-à-point." },
+      { q: "LAN-to-LAN VPN connecte :", options: ["Deux hôtes","Deux réseaux locaux distants","Un hôte au cloud","Un VLAN à un autre"], answer: 1, explain: "Un VPN LAN-to-LAN (ou site-to-site) connecte en permanence deux réseaux locaux (sites distants) via Internet, comme s'ils étaient sur le même réseau physique." },
+      { q: "Qu'est-ce que le Web Tunneling ?", options: ["Navigation web classique","Encapsulation de trafic dans des requêtes HTTP/HTTPS","Un type de proxy","Du routage web"], answer: 1, explain: "Le Web Tunneling (ou HTTP tunneling) encapsule un protocole arbitraire à l'intérieur de requêtes HTTP/HTTPS pour traverser des pare-feux restrictifs qui ne bloquent pas le web." },
+      { q: "PPTP est considéré comme :", options: ["Très sécurisé","Obsolète et peu sécurisé","Le meilleur VPN","Un protocole de routage"], answer: 1, explain: "PPTP est vulnérable à de nombreuses attaques (MS-CHAPv2 cassé, RC4 faible). Il est officiellement déconseillé depuis des années. WireGuard ou OpenVPN sont de bien meilleures alternatives." },
+      { q: "Tailscale est :", options: ["Un pare-feu","Un VPN mesh basé sur WireGuard","Un SIEM","Un outil de sauvegarde"], answer: 1, explain: "Tailscale crée un réseau mesh (maillé) où chaque nœud peut communiquer directement avec les autres en P2P, basé sur WireGuard pour le chiffrement. Zéro configuration de ports à ouvrir." },
+    ]
+  },
+  {
+    id: "virtualisation", title: "Virtualisation & Conteneurisation", icon: "📦",
+    questions: [
+      { q: "Quels sont les types d'hyperviseur ?", options: ["Type 1 (bare-metal) et Type 2 (hosted)","Type A et Type B","Natif et Virtuel","Primaire et Secondaire"], answer: 0, explain: "Type 1 (bare-metal) : s'installe directement sur le matériel (VMware ESXi, Proxmox, Hyper-V). Type 2 (hosted) : s'installe sur un OS hôte (VirtualBox, VMware Workstation). Type 1 est plus performant." },
+      { q: "Docker --icc=false sert à :", options: ["Accélérer les conteneurs","Désactiver la communication inter-conteneurs","Activer le réseau bridge","Supprimer les images"], answer: 1, explain: "--icc=false (Inter-Container Communication) désactive la communication directe entre conteneurs sur le bridge Docker. Bonne pratique de sécurité : les conteneurs ne doivent communiquer qu'explicitement." },
+      { q: "Quelle est la différence entre une image Docker et un conteneur ?", options: ["L'image est le modèle, le conteneur est l'instance en exécution","Aucune différence","Le conteneur est le modèle","L'image s'exécute directement"], answer: 0, explain: "L'image Docker est un modèle immuable (comme une classe en POO). Le conteneur est une instance en cours d'exécution de cette image, avec sa propre couche de filesystem en écriture." },
+      { q: "Quelle est la différence entre un conteneur Docker et une VM ?", options: ["Le conteneur partage le noyau de l'hôte, la VM a son propre OS","Aucune différence","La VM est plus légère","Docker utilise un hyperviseur"], answer: 0, explain: "Les conteneurs partagent le noyau Linux de l'hôte (isolation par namespaces/cgroups), ce qui les rend très légers. Une VM virtualise le matériel et possède son propre OS complet." },
+      { q: "Portainer est :", options: ["Un hyperviseur","Une interface de gestion Docker/Kubernetes","Un pare-feu","Un outil de monitoring"], answer: 1, explain: "Portainer est une interface web open source pour gérer Docker, Docker Swarm et Kubernetes. Il simplifie la gestion des conteneurs, images, volumes et réseaux sans ligne de commande." },
+      { q: "CasaOS / ZimaSpace est :", options: ["Un OS serveur cloud personnel","Un pare-feu","Un protocole réseau","Un outil de pentesting"], answer: 0, explain: "CasaOS est un système d'exploitation cloud personnel (homelab) avec interface web pour gérer des applications Docker sur un NAS ou mini-PC. Conçu pour l'auto-hébergement." },
+      { q: "Que signifie Auto Scalability ?", options: ["Mise à l'échelle manuelle","Ajustement automatique des ressources selon la charge","Sauvegarde automatique","Compression automatique"], answer: 1, explain: "L'auto-scaling ajuste automatiquement le nombre d'instances (conteneurs, VMs) en fonction de la charge réelle. Kubernetes HPA et les load balancers cloud implémentent ce mécanisme." },
+      { q: "Kubernetes sert à :", options: ["Créer des VM","Orchestrer des conteneurs","Gérer des pare-feu","Scanner des vulnérabilités"], answer: 1, explain: "Kubernetes (K8s) est un orchestrateur de conteneurs : il automatise le déploiement, la mise à l'échelle, le load balancing et la gestion du cycle de vie des conteneurs en cluster." },
+      { q: "Pourquoi faire des snapshots post-install avec Kubernetes ?", options: ["Pour la performance","Pour pouvoir revenir à un état stable en cas de problème","Pour le routage","Pour les VLAN"], answer: 1, explain: "Un snapshot post-installation permet de restaurer rapidement l'état fonctionnel de référence si une mise à jour ou configuration échoue, évitant de tout réinstaller depuis zéro." },
+      { q: "Duplicati sert à :", options: ["Virtualiser","Sauvegarder (backup)","Monitorer","Router"], answer: 1, explain: "Duplicati est un outil de sauvegarde open source chiffré qui supporte de nombreux backends (S3, SFTP, Google Drive...) et permet des sauvegardes incrémentales et planifiées." },
+      { q: "Quels sont les 3 types de virtualisation ?", options: ["Native, paravirtualisation, applicative","Type 1, Type 2, Type 3","Locale, distante, hybride","Hardware, software, cloud"], answer: 0, explain: "Les 3 types : virtualisation native (hardware complet émulé), paravirtualisation (le guest sait qu'il est virtualisé pour plus de perfs), virtualisation applicative (conteneurs, AppV)." },
+      { q: "Les droits processeur RING 0 correspondent à :", options: ["Mode utilisateur","Mode noyau (kernel) - privilège maximum","Mode application","Mode réseau"], answer: 1, explain: "RING 0 est le niveau de privilège le plus élevé du CPU (mode kernel). L'hyperviseur fonctionne en RING 0. Les applications utilisateur tournent en RING 3. Les VMs tournent en RING 1 ou via VMX." },
+      { q: "Le thin provisioning permet de :", options: ["Allouer tout l'espace disque immédiatement","Allouer l'espace disque à la demande","Compresser les données","Chiffrer le stockage"], answer: 1, explain: "Thin provisioning alloue l'espace disque dynamiquement au fur et à mesure que les données sont écrites. Optimise l'utilisation du stockage mais risque de dépasser la capacité physique (overcommit)." },
+      { q: "Qu'est-ce qu'un LUN ?", options: ["Local User Network","Logical Unit Number (unité de stockage)","Linux Unified Namespace","Link Utilization Node"], answer: 1, explain: "Un LUN (Logical Unit Number) est une unité de stockage logique exposée par un système SAN (iSCSI, Fibre Channel). Un ESXi voit le LUN comme un disque dur virtuel." },
+      { q: "L'IQN sert à :", options: ["Router les paquets","Identifier un nœud iSCSI (lien stockage-ESXi)","Chiffrer les données","Gérer les VLAN"], answer: 1, explain: "L'IQN (iSCSI Qualified Name) est l'identifiant unique d'un initiateur ou target iSCSI, permettant d'associer un ESXi à un LUN spécifique sur le SAN (ex: TrueNAS)." },
+      { q: "Qu'est-ce qu'un client léger vs client lourd ?", options: ["Léger = traitement côté serveur, Lourd = traitement local","Léger = petit écran, Lourd = grand écran","Aucune différence","Léger = sans réseau, Lourd = avec réseau"], answer: 0, explain: "Client léger (thin client) : peu de ressources locales, traitement côté serveur (ex: Citrix). Client lourd : traitement et stockage en local (PC classique). Impact majeur sur la bande passante réseau." },
+    ]
+  },
+  {
+    id: "admin", title: "Administration Windows & Linux", icon: "⚙️",
+    questions: [
+      { q: "AGDLP signifie :", options: ["Account, Global, Domain Local, Permission","Active Group Directory Local Protocol","Advanced Group Delegation Process","Account Gateway Local Permission"], answer: 0, explain: "AGDLP est la méthode Microsoft de gestion des droits AD : les comptes (A) sont mis dans des groupes Globaux (G), eux-mêmes mis dans des groupes Domain Local (DL), auxquels on affecte les Permissions (P)." },
+      { q: "Combien y a-t-il de rôles FSMO ?", options: ["3","4","5","7"], answer: 2, explain: "Il y a exactement 5 rôles FSMO (Flexible Single Master Operations) dans un domaine AD : Maître de schéma, Maître d'attribution des noms, RID Master, Émulateur PDC, Maître d'infrastructure." },
+      { q: "Quels sont les 5 rôles FSMO ?", options: ["Maître nommage, Maître RID, Maître de schéma, Émulateur PDC, Maître d'infrastructures","DNS, DHCP, AD, GPO, OU","DC, GC, RODC, PDC, BDC","Schema, Forest, Domain, Tree, Site"], answer: 0, explain: "Les 5 rôles FSMO : Maître de schéma (forêt), Maître de nommage de domaine (forêt), Maître RID (domaine), Émulateur PDC (domaine), Maître d'infrastructure (domaine). 2 au niveau forêt, 3 par domaine." },
+      { q: "Le SID est :", options: ["Un identifiant de session","Security Identifier - identifiant unique d'un objet AD","System Interface Device","Secure Internet Domain"], answer: 1, explain: "Le SID (Security Identifier) est l'identifiant unique et immuable d'un objet AD (utilisateur, groupe, ordinateur). Windows utilise les SIDs (pas les noms) pour les droits NTFS et ACLs." },
+      { q: "Le RID (dans FSMO) est :", options: ["Relative Identifier - attribue des ID uniques aux objets","Remote Interface Device","Routing Information Database","Real-time ID"], answer: 0, explain: "Le RID Master attribue des pools de Relative Identifiers (partie variable du SID) à chaque DC pour créer des objets AD avec des SIDs uniques. Sans lui, la création d'objets échoue." },
+      { q: "Faut-il mettre l'AD dans la DMZ publique ?", options: ["Oui","Non, dans la DMZ privée","Peu importe","Dans le WAN"], answer: 1, explain: "L'AD contient toutes les informations d'authentification du SI. Le mettre en DMZ publique l'exposerait à Internet. Il doit être dans une DMZ privée (interne) strictement cloisonnée." },
+      { q: "La DMZ publique contient :", options: ["L'Active Directory","Les serveurs web, messagerie, ouverts vers l'extérieur","Les postes clients","Les sauvegardes"], answer: 1, explain: "La DMZ publique héberge les services accessibles depuis Internet : serveurs web, reverse proxy, serveur mail, DNS public. Ces services sont exposés mais isolés du LAN interne." },
+      { q: "La DMZ privée sert à :", options: ["Ouvrir des services vers Internet","Isoler des services internes (ex: AD)","Connecter le WAN","Héberger le DNS public"], answer: 1, explain: "La DMZ privée isole des services critiques internes (AD, bases de données) du reste du LAN tout en les rendant accessibles aux serveurs internes. Une couche de sécurité supplémentaire." },
+      { q: "Les droits Linux importants : chmod 755 signifie :", options: ["rwx pour tous","rwxr-xr-x (owner: rwx, group/others: rx)","rw pour owner, r pour group","Aucun droit"], answer: 1, explain: "755 = 7(owner:rwx=4+2+1) 5(group:r-x=4+1) 5(others:r-x=4+1). Le propriétaire peut tout faire, groupe et autres peuvent lire et exécuter mais pas écrire. Typique pour les scripts web." },
+      { q: "Sous Linux, le fichier /etc/shadow contient :", options: ["Les configurations réseau","Les mots de passe hashés des utilisateurs","Les logs système","Les règles de pare-feu"], answer: 1, explain: "/etc/shadow stocke les mots de passe hashés (SHA-512), les dates d'expiration et les politiques de mot de passe. Lisible uniquement par root, contrairement à /etc/passwd." },
+      { q: "KeePass est :", options: ["Un pare-feu","Un gestionnaire de mots de passe","Un outil de virtualisation","Un protocole VPN"], answer: 1, explain: "KeePass est un gestionnaire de mots de passe open source qui stocke les credentials dans un fichier chiffré AES-256. Il peut générer des clés SSH (via KeeAgent) et s'intégrer avec PuTTY." },
+      { q: "YOURLS est :", options: ["Un protocole réseau","Un raccourcisseur d'URL auto-hébergé","Un outil de monitoring","Un type de VLAN"], answer: 1, explain: "YOURLS (Your Own URL Shortener) est un outil PHP auto-hébergé pour créer des URLs raccourcies personnalisées, similaire à bit.ly mais sous contrôle total sur son infrastructure." },
+      { q: "Pourquoi utiliser 'systemctl reload' plutôt que 'restart' pour Apache ?", options: ["C'est plus rapide","Restart casse toutes les sessions = perte financière","Reload est plus récent","Aucune différence"], answer: 1, explain: "'reload' applique la nouvelle configuration sans couper les connexions actives (graceful reload). 'restart' arrête et redémarre brutalement le service, interrompant toutes les sessions en cours." },
+      { q: "Qu'est-ce qu'une clé GPG ?", options: ["Une clé de chiffrement asymétrique pour signer/chiffrer","Un mot de passe WiFi","Une clé USB sécurisée","Un token d'authentification"], answer: 0, explain: "GPG (GNU Privacy Guard) implémente le standard OpenPGP pour le chiffrement asymétrique. Une paire de clés (publique/privée) permet de signer des emails, chiffrer des fichiers ou vérifier des paquets." },
+      { q: "Qu'est-ce qu'un SPOF ?", options: ["Single Point of Failure","Secure Protocol Over Firewall","System Performance Optimization Framework","Static Path Of Flow"], answer: 0, explain: "Un SPOF (Single Point of Failure) est un composant unique dont la panne provoque l'arrêt complet du système. L'objectif en HA est d'éliminer tous les SPOF via la redondance." },
+    ]
+  },
+  {
+    id: "cisco", title: "Cisco & Équipements", icon: "🖥️",
+    questions: [
+      { q: "La commande 'no ip domain-lookup' sur Cisco sert à :", options: ["Désactiver le DNS","Éviter la résolution DNS qui fait attendre (file d'attente)","Activer le routage","Configurer le DHCP"], answer: 1, explain: "Sans cette commande, Cisco interprète les fautes de frappe comme des noms d'hôtes et essaie de les résoudre en DNS, bloquant le CLI 30+ secondes. 'no ip domain-lookup' désactive ce comportement." },
+      { q: "Password type 0 sur Cisco signifie :", options: ["Hashé","Chiffré","En clair","Désactivé"], answer: 2, explain: "Type 0 = mot de passe en clair dans la configuration (visible en show run). Type 7 = encodage faible réversible. Type 5 = MD5. Type 9 = scrypt (le plus sécurisé recommandé actuellement)." },
+      { q: "Password type 5 sur Cisco signifie :", options: ["En clair","Hashé","Chiffré","Binaire"], answer: 1, explain: "Type 5 utilise MD5 (enable secret). C'est un hash unidirectionnel, contrairement au type 7 (réversible). Attention : MD5 est aujourd'hui considéré faible, le type 9 (scrypt) est recommandé." },
+      { q: "Password type 7 sur Cisco signifie :", options: ["En clair","Hashé","Chiffré (réversible)","Double hashé"], answer: 2, explain: "Type 7 est un encodage faible propriétaire Cisco facilement réversible avec des outils publics. Ne procure pas de vraie sécurité. À éviter pour les mots de passe sensibles." },
+      { q: "Que contient la flash d'un switch Cisco ?", options: ["Les logs","Le firmware (OS)","Les VLANs","Les mots de passe"], answer: 1, explain: "La mémoire flash d'un équipement Cisco contient l'IOS (Internetwork Operating System), le firmware. La NVRAM stocke la startup-config, la RAM la running-config." },
+      { q: "Que se passe-t-il si on supprime le contenu de la flash ?", options: ["Rien","Le switch ne peut plus booter (OS supprimé)","Les VLANs sont réinitialisés","Le mot de passe est réinitialisé"], answer: 1, explain: "Supprimer la flash efface l'IOS. Le switch ne peut plus démarrer normalement et passe en mode ROMMON. Il faut alors transférer un nouvel IOS via TFTP depuis ROMMON pour le récupérer." },
+      { q: "'reload in 10' sur Cisco sert à :", options: ["Redémarrer immédiatement","Programmer un redémarrage dans 10 min (sécurité)","Sauvegarder la config","Afficher les logs"], answer: 1, explain: "Cette commande de sécurité programme un redémarrage automatique dans 10 minutes. Si la nouvelle config cause une perte d'accès, l'équipement redémarre seul avec l'ancienne config." },
+      { q: "Comment annuler un reload programmé sur Cisco ?", options: ["no reload","cancel reload","stop reload","abort reload"], answer: 1, explain: "'reload cancel' annule le redémarrage programmé. Sans cette commande, le redémarrage aura lieu même si la configuration s'est révélée correcte après vérification." },
+      { q: "Comment se connecter en Telnet sur CPKT ?", options: ["ssh ip","telnet 'ip switch/routeur'","connect ip","remote ip"], answer: 1, explain: "La syntaxe Cisco pour Telnet est 'telnet <adresse_ip>'. Attention : Telnet transmet en clair, SSH est recommandé en production. Sur Packet Tracer, c'est une commande fréquemment testée." },
+      { q: "Le mode ROMMON permet de :", options: ["Configurer les VLAN","Récupérer un équipement (confreg, attribuer IP pour firmware)","Surveiller le réseau","Créer des ACL"], answer: 1, explain: "ROMMON (ROM Monitor) est le mode de maintenance bas niveau d'un équipement Cisco, accessible si l'IOS est corrompu ou absent. Permet de modifier le registre de configuration (confreg) et charger un firmware via TFTP." },
+      { q: "La commande 'show run | include' sur Cisco sert à :", options: ["Afficher toute la config","Filtrer l'affichage avec un mot-clé","Sauvegarder la config","Redémarrer l'équipement"], answer: 1, explain: "'show running-config | include <motclé>' filtre la sortie pour n'afficher que les lignes contenant le mot-clé. Équivalent du 'grep' Linux, très pratique pour trouver rapidement une configuration." },
+      { q: "Qu'est-ce que le TFTP ?", options: ["Trivial File Transfer Protocol - transfert simple de fichiers","Total Firewall Transfer Protocol","Trusted File Transport Process","Temporary FTP"], answer: 0, explain: "TFTP (Trivial FTP, port 69 UDP) est un protocole de transfert ultra-simple sans authentification, utilisé principalement pour transférer des firmwares/IOS vers des équipements réseau en ROMMON." },
+      { q: "Quelle est la différence entre un OS et un firmware ?", options: ["OS = système complet, Firmware = logiciel embarqué spécifique au matériel","Aucune différence","Firmware est plus complet","OS est pour le matériel uniquement"], answer: 0, explain: "L'OS (Linux, Windows) est un système généraliste gérant le matériel et les applications. Le firmware est un logiciel embarqué bas niveau spécifique à un équipement (IOS Cisco, BIOS, ROM d'imprimante)." },
+      { q: "Quels sites sont recommandés pour apprendre le réseau ?", options: ["Networklab et Frameip","Wikipedia et YouTube","Reddit et Stack Overflow","Cisco.com uniquement"], answer: 0, explain: "Networklab.fr et Frameip.com sont des ressources francophones de référence pour apprendre les protocoles réseau et la configuration Cisco avec des explications claires et des labs pratiques." },
+    ]
+  },
+  {
+    id: "ha", title: "Haute Disponibilité & Redondance", icon: "🔄",
+    questions: [
+      { q: "Quel protocole de redondance de passerelle fait du load balancing ?", options: ["HSRP","VRRP","CARP","GLBP"], answer: 3, explain: "GLBP (Gateway Load Balancing Protocol) est le seul protocole Cisco qui fait vraiment du load balancing entre plusieurs passerelles actives simultanément. HSRP, VRRP et CARP font uniquement du failover." },
+      { q: "HSRP, VRRP et CARP font du :", options: ["Load balancing","Failover","Routage dynamique","NAT"], answer: 1, explain: "Ces 3 protocoles font du failover (basculement) : une passerelle virtuelle active, les autres en standby. Si l'active tombe, une standby prend la main automatiquement. Pas de répartition de charge." },
+      { q: "La différence entre HSRP et VRRP :", options: ["HSRP = Cisco propriétaire, VRRP = standard ouvert","HSRP = open source, VRRP = Cisco","Aucune différence","HSRP = load balancing, VRRP = failover"], answer: 0, explain: "HSRP (Hot Standby Router Protocol) est propriétaire Cisco. VRRP (Virtual Router Redundancy Protocol) est le standard ouvert IEEE équivalent, utilisable sur tout équipement multi-vendor." },
+      { q: "CARP est utilisé principalement sur :", options: ["Cisco","pfSense/BSD","Linux","Windows"], answer: 1, explain: "CARP (Common Address Redundancy Protocol) est l'implémentation OpenBSD/pfSense du failover de passerelle. C'est le protocole natif de pfSense pour la haute disponibilité pare-feu." },
+      { q: "La différence entre load balancing et failover :", options: ["Load balancing = répartition de charge, Failover = basculement en cas de panne","Load balancing = sauvegarde, Failover = répartition","Aucune différence","Les deux font la même chose"], answer: 0, explain: "Load balancing distribue le trafic entre plusieurs instances actives simultanément. Le failover ne sert qu'à basculer vers un serveur de secours en cas de panne du principal." },
+      { q: "Dual WAN signifie :", options: ["Deux LAN","Deux connexions Internet (2 box)","Deux pare-feu","Deux serveurs DNS"], answer: 1, explain: "Dual WAN connecte deux liaisons Internet différentes (ex: fibre + 4G) sur le pare-feu pour assurer la continuité si l'une tombe, ou répartir la charge entre les deux liens." },
+      { q: "RAID assure :", options: ["Le routage","La haute disponibilité du stockage","Le chiffrement","La virtualisation"], answer: 1, explain: "RAID (Redundant Array of Independent Disks) assure la disponibilité et/ou la performance du stockage via la redondance (RAID 1, 5, 6, 10...). Il ne chiffre pas et ne remplace pas une sauvegarde." },
+      { q: "Le théorème CAP concerne :", options: ["Les réseaux locaux","Les systèmes distribués : Consistency, Availability, Partition tolerance","Les pare-feu","Le chiffrement"], answer: 1, explain: "Le théorème CAP (Brewer) dit qu'un système distribué ne peut garantir simultanément que 2 des 3 propriétés : Cohérence (C), Disponibilité (A) et tolérance au Partitionnement (P)." },
+      { q: "Le Brain Split (split-brain) désigne :", options: ["Une attaque réseau","Deux nœuds d'un cluster qui se croient chacun maître","Un problème de DNS","Un type de RAID"], answer: 1, explain: "Le split-brain survient quand deux nœuds d'un cluster perdent contact et chacun se croit le seul maître, pouvant provoquer des corruptions de données. Le quorum et le fencing (STONITH) sont les solutions." },
+      { q: "Que doit contenir un projet de fin d'année AIS ?", options: ["Uniquement un schéma réseau","Auth centralisée, supervision, VLANs, redondance, prix matériel","Un simple rapport","Seulement la configuration Cisco"], answer: 1, explain: "Un projet AIS complet doit couvrir : authentification centralisée (AD/RADIUS), supervision (Zabbix/Grafana), segmentation VLAN, redondance (HA), et une estimation budgétaire matérielle." },
+      { q: "Quels documents de production faut-il avoir ?", options: ["Un CV","Document de production, d'exploitation et de reprise d'activité","Un PowerPoint","Un email"], answer: 1, explain: "Les 3 documents essentiels : DAT (Document Architecture Technique), Document d'exploitation (runbook), PRA/PCA (Plan de Reprise/Continuité d'Activité). Indispensables en production." },
+      { q: "Que signifie 'gérer les SPOF' dans un projet ?", options: ["Identifier et éliminer les points uniques de défaillance","Installer plus de serveurs","Augmenter la bande passante","Créer plus de VLANs"], answer: 0, explain: "Gérer les SPOF = identifier tous les composants dont la panne arrêterait le service (switch unique, lien unique, serveur sans redondance) et les éliminer via la redondance." },
+    ]
+  },
+  {
+    id: "supervision", title: "Supervision & SNMP", icon: "📊",
+    questions: [
+      { q: "SNMP signifie :", options: ["Simple Network Management Protocol","Secure Network Monitoring Process","System Network Map Protocol","Server Node Management Platform"], answer: 0, explain: "SNMP (Simple Network Management Protocol) est le protocole standard de supervision réseau. Il permet aux outils (Zabbix, Nagios) de collecter des métriques et d'envoyer des alertes (traps) depuis les équipements." },
+      { q: "Qu'est-ce qu'un OID dans SNMP ?", options: ["Object Identifier - identifiant unique d'un objet supervisé","Open Interface Device","Operating ID","Output Identifier"], answer: 0, explain: "Un OID (Object Identifier) est un identifiant numérique hiérarchique (ex: 1.3.6.1.2.1.1.1) désignant un objet spécifique dans la MIB (charge CPU, trafic interface, température...)." },
+      { q: "Qu'est-ce qu'une MIB ?", options: ["Management Information Base - base de données d'objets SNMP","Main Interface Board","Multi Input Bridge","Master ID Base"], answer: 0, explain: "La MIB (Management Information Base) est l'arbre hiérarchique de tous les objets SNMP supervisables sur un équipement. Chaque constructeur peut définir ses propres MIBs privées." },
+      { q: "La différence entre agent SNMP actif et passif :", options: ["Actif envoie des traps spontanément, Passif attend les requêtes","Aucune différence","Actif = plus lent","Passif = envoie des traps"], answer: 0, explain: "Un agent SNMP passif (polling) répond aux requêtes du manager. Un agent actif envoie des traps (alertes) spontanément en cas d'événement sans attendre la prochaine interrogation." },
+      { q: "Trello est un outil de :", options: ["Supervision","Gestion de projet (kanban)","Virtualisation","Sécurité"], answer: 1, explain: "Trello est un outil de gestion de projet visuel basé sur des tableaux kanban (colonnes To Do / Doing / Done). Utile pour organiser les tâches d'un projet IT mais pas pour la supervision réseau." },
+      { q: "Quel est l'outil de traceroute graphique mentionné ?", options: ["Wireshark","Traceroute graphique sur notre IP","Nmap","Zenmap"], answer: 1, explain: "Les outils de traceroute graphique (comme WinMTR, VisualRoute ou les outils online) affichent le chemin réseau de façon visuelle avec les latences et pertes par saut, bien plus lisible qu'un tracert CLI." },
+      { q: "Load balancing en DMZ sert à :", options: ["Chiffrer le trafic","Répartir la charge entre plusieurs serveurs en DMZ","Bloquer les intrusions","Créer des VLANs"], answer: 1, explain: "Un load balancer en DMZ (HAProxy, Nginx, F5) distribue les requêtes entrantes entre plusieurs serveurs backend, améliorant performance et disponibilité tout en masquant l'infrastructure interne." },
+      { q: "Sur pfSense, pour résoudre un ping qui ne marche pas :", options: ["Redémarrer le serveur","Ajouter une règle ICMP en floating autorisant tout","Changer le DNS","Désactiver le pare-feu"], answer: 1, explain: "pfSense bloque ICMP par défaut. Une règle floating (s'appliquant à toutes les interfaces) autorisant ICMP est souvent nécessaire pour les tests de connectivité dans un lab." },
+      { q: "Pourquoi pfSense bloque des choses quand on crée une règle ?", options: ["Bug logiciel","Par défaut, créer une règle active le blocage implicite","Problème de réseau","Manque de RAM"], answer: 1, explain: "pfSense applique une règle de refus implicite en bas de chaque interface. Créer une règle permissive sans règle de retour (reply-to) ou en floating peut créer des blocages inattendus." },
+      { q: "Dans TrueNAS en lab, pourquoi ne pas mettre d'authentification sur le portal ?", options: ["Par paresse","On est en lab, pas de charge de chiffrement inutile","C'est impossible","Pour la sécurité"], answer: 1, explain: "En environnement lab isolé, désactiver l'authentification iSCSI évite l'overhead de chiffrement CHAP et simplifie la configuration. En production, l'authentification est obligatoire." },
+    ]
+  },
+  {
+    id: "referentiels", title: "Référentiels & Gestion de Projet", icon: "📋",
+    questions: [
+      { q: "ISO 9001 concerne :", options: ["La sécurité informatique","Le management de la qualité","L'environnement","La virtualisation"], answer: 1, explain: "ISO 9001 est la norme internationale de système de management de la qualité (SMQ). Elle certifie que les processus d'une organisation répondent aux exigences clients de façon cohérente." },
+      { q: "ISO 27001 concerne :", options: ["La qualité","La sécurité de l'information (SMSI)","L'environnement","Le réseau"], answer: 1, explain: "ISO 27001 définit les exigences pour un SMSI (Système de Management de la Sécurité de l'Information). C'est LA référence internationale pour la cybersécurité organisationnelle." },
+      { q: "NIS2 est :", options: ["Un protocole réseau","Une directive européenne sur la cybersécurité","Un outil de monitoring","Un type de RAID"], answer: 1, explain: "NIS2 (Network and Information Security 2) est une directive UE de 2022 renforçant la cybersécurité des entités essentielles et importantes en Europe, avec des exigences et sanctions renforcées." },
+      { q: "ITIL est :", options: ["Un langage de programmation","Un référentiel de bonnes pratiques pour la gestion des services IT","Un protocole réseau","Un outil de virtualisation"], answer: 1, explain: "ITIL (Information Technology Infrastructure Library) est le référentiel de bonnes pratiques pour la gestion des services IT (ITSM), couvrant la gestion des incidents, changements, problèmes, etc." },
+      { q: "PRINCE2 est :", options: ["Un protocole de sécurité","Une méthode de gestion de projet","Un outil de supervision","Un type de VPN"], answer: 1, explain: "PRINCE2 (Projects IN Controlled Environments) est une méthode de gestion de projet structurée très utilisée en Europe, particulièrement dans le secteur public et IT." },
+      { q: "Le cycle PDCA signifie :", options: ["Plan, Do, Check, Act","Process, Define, Control, Automate","Plan, Deploy, Configure, Approve","Protocol, Data, Connection, Authentication"], answer: 0, explain: "PDCA (Roue de Deming) : Plan (planifier), Do (faire), Check (vérifier), Act (améliorer). C'est le cycle d'amélioration continue utilisé en qualité, ITIL, ISMS et management en général." },
+      { q: "Combien y a-t-il de couches dans l'urbanisation du SI ?", options: ["3","4","5","7"], answer: 2, explain: "L'urbanisation du SI s'organise généralement en 5 couches : Métier, Applicative, Service, Infrastructure/Technique, et Transversale (sécurité, référentiels). Certains modèles en comptent 3 ou 4." },
+      { q: "Un référentiel orienté processus mesure des indicateurs de :", options: ["Uniquement la performance","Performance, efficience et indicateurs sociétaux","Uniquement financiers","Uniquement techniques"], answer: 1, explain: "Un référentiel processus mesure la performance (efficacité), l'efficience (ratio résultat/ressources) et des indicateurs sociétaux (impact RH, environnemental). Vision globale au-delà du technique." },
+      { q: "Dans un projet, il faut justifier :", options: ["Uniquement le budget","L'utilisation de chaque technologie et les comparer","Uniquement les délais","Uniquement la sécurité"], answer: 1, explain: "Chaque choix technologique doit être justifié et comparé à des alternatives (ex: pourquoi pfSense plutôt qu'OPNsense, pourquoi Proxmox plutôt que VMware). Évite les choix arbitraires non défendables." },
+      { q: "Sur chaque image/tableau d'un projet il faut :", options: ["Un titre","Une légende en dessous","Une date","Un numéro de page"], answer: 1, explain: "Dans un document technique professionnel, chaque schéma, tableau et illustration doit avoir une légende descriptive en dessous (ex: 'Figure 3 : Architecture réseau logique du SI')." },
+      { q: "Les 3 piliers de la sécurité sont :", options: ["Routage, Switching, Wireless","Attaque, Défense, Forensic","Physique, Logique, Organisationnel","Confidentialité, Intégrité, Disponibilité"], answer: 1, explain: "Les 3 piliers de la sécurité SI sont la sécurité Physique (accès physique), Logique (systèmes, applications) et Organisationnelle (politiques, procédures, formation). La triade CIA est une autre approche." },
+      { q: "Nativité VLAN désigne :", options: ["Le premier VLAN créé","Le VLAN natif = VLAN par défaut non taggé sur un trunk","Un VLAN chiffré","Un VLAN sans IP"], answer: 1, explain: "Le VLAN natif (par défaut VLAN 1 sur Cisco) est le VLAN non taggé sur un trunk 802.1Q. Bonne pratique de sécurité : changer le VLAN natif du VLAN 1 pour éviter les VLAN hopping attacks." },
+      { q: "Le mode promiscuité (promiscuous) sur une interface réseau permet de :", options: ["Bloquer le trafic","Capturer tout le trafic passant, même non destiné à l'interface","Accélérer le réseau","Chiffrer les paquets"], answer: 1, explain: "En mode promiscuous, la carte réseau capture toutes les trames du segment réseau, pas seulement celles qui lui sont destinées. Nécessaire pour Wireshark, les IDS et les analyseurs réseau." },
+      { q: "Il y a des IP interdites sur le WAN, lesquelles ?", options: ["Les IP privées (RFC 1918)","Les IP publiques","Les IP en /32","Toutes les IP"], answer: 0, explain: "Les adresses privées RFC 1918 (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16) ne doivent jamais apparaître sur Internet (WAN). Un routeur WAN doit filtrer ce trafic (anti-spoofing)." },
+      { q: "ACP désigne :", options: ["Analyse en Composantes Principales","Advanced Control Protocol","Automatic Configuration Process","Access Control Point"], answer: 0, explain: "L'ACP (Analyse en Composantes Principales) est une méthode statistique de réduction de dimensionnalité, utilisée en data science et IA pour identifier les variables les plus explicatives." },
+    ]
+  },
+];
+
+const chapterGroups = [
+  { id: "g1", title: "Fondamentaux Réseau", icon: "🌐", chapterIds: ["osi","reseau"] },
+  { id: "g2", title: "Sécurité & VPN", icon: "🛡️", chapterIds: ["securite","vpn"] },
+  { id: "g3", title: "Infrastructure", icon: "🏗️", chapterIds: ["virtualisation","admin","cisco"] },
+  { id: "g4", title: "Opérations & Management", icon: "📊", chapterIds: ["ha","supervision","referentiels"] },
+];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+const STORAGE_KEY = "ais_progress_v3";
+let progress = {};
+let currentScreen = "home";
+let quizData = null;
+let quizResults = [];
+let quizIdx = 0;
+let quizAnswered = false;
+let quizSelected = null;
+
+// ─── OFFLINE/SYNC ─────────────────────────────────────────────────────────────
+function loadProgress() {
+  try { progress = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }
+  catch { progress = {}; }
+}
+function saveProgress() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(progress)); } catch {}
+}
+function updateProgress(chId, origIdx, correct) {
+  if (!progress[chId]) progress[chId] = {};
+  progress[chId][origIdx] = correct;
+  saveProgress();
+}
+
+// ─── OFFLINE DETECTION ────────────────────────────────────────────────────────
+window.addEventListener('online', () => { document.getElementById('offlineBadge').classList.remove('show'); });
+window.addEventListener('offline', () => { document.getElementById('offlineBadge').classList.add('show'); });
+if (!navigator.onLine) document.getElementById('offlineBadge').classList.add('show');
+
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length-1; i>0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+function getChapterPct(chId) {
+  const ch = chapters.find(c => c.id === chId);
+  if (!ch || !progress[chId]) return 0;
+  return Math.round(Object.keys(progress[chId]).length / ch.questions.length * 100);
+}
+function getChapterCorrectPct(chId) {
+  const ch = chapters.find(c => c.id === chId);
+  if (!ch || !progress[chId]) return 0;
+  return Math.round(Object.values(progress[chId]).filter(Boolean).length / ch.questions.length * 100);
+}
+function getGlobalStats() {
+  const totalQ = chapters.reduce((s,c) => s+c.questions.length, 0);
+  const totalA = chapters.reduce((s,c) => s+(progress[c.id]?Object.keys(progress[c.id]).length:0), 0);
+  const totalC = chapters.reduce((s,c) => s+(progress[c.id]?Object.values(progress[c.id]).filter(Boolean).length:0), 0);
+  return { totalQ, totalA, totalC, pct: Math.round(totalA/totalQ*100), correctPct: Math.round(totalC/totalQ*100) };
+}
+
+// ─── NAVIGATION ───────────────────────────────────────────────────────────────
+function navigate(to, data) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  currentScreen = to;
+  if (data) quizData = data;
+  renderScreen(to);
+  const el = document.getElementById('screen-'+to);
+  el.classList.add('active');
+  el.scrollTop = 0;
+  window.scrollTo(0,0);
+}
+
+// ─── DOWNLOAD ─────────────────────────────────────────────────────────────────
+function downloadApp() {
+  const html = document.documentElement.outerHTML;
+  const blob = new Blob([html], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'revisions-ais.html';
+  a.click();
+}
+
+// ─── QUIT MODAL ───────────────────────────────────────────────────────────────
+function openQuitModal() {
+  const correct = quizResults.filter(r=>r.correct).length;
+  document.getElementById('quitScore').textContent = `${correct}/${quizResults.length} réponses correctes jusqu'ici (${quizResults.length > 0 ? Math.round(correct/quizResults.length*100) : 0}%)`;
+  document.getElementById('quitModal').classList.add('open');
+}
+function closeQuitModal() {
+  document.getElementById('quitModal').classList.remove('open');
+}
+function confirmQuit() {
+  document.getElementById('quitModal').classList.remove('open');
+  if (quizResults.length > 0) {
+    navigate('results', { ...quizData, results: quizResults, questions: quizData.questions.slice(0, quizResults.length) });
+  } else {
+    navigate('home');
+  }
+}
+
+// ─── SVG RING ─────────────────────────────────────────────────────────────────
+function progressRing(pct, size=54, stroke=5, color='var(--accent)') {
+  const r = (size-stroke)/2;
+  const c = 2*Math.PI*r;
+  const off = c-(pct/100)*c;
+  return `<svg width="${size}" height="${size}" style="transform:rotate(-90deg)">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--bg-card-alt)" stroke-width="${stroke}"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}"
+      stroke-dasharray="${c}" stroke-dashoffset="${off}" stroke-linecap="round" style="transition:stroke-dashoffset 0.6s ease"/>
+  </svg>`;
+}
+function progressBar(pct, h=8, color='') {
+  const col = color || 'var(--accent)';
+  return `<div class="progress-bar" style="height:${h}px"><div class="progress-bar-inner" style="width:${pct}%;background:${col}"></div></div>`;
+}
+function barColor(cpct) {
+  return cpct >= 80 ? 'var(--success)' : cpct >= 50 ? 'var(--warning)' : 'var(--accent)';
+}
+
+// ─── SCREENS ──────────────────────────────────────────────────────────────────
+function renderScreen(screen) {
+  const el = document.getElementById('screen-'+screen);
+  if (screen==='home') el.innerHTML = renderHome();
+  else if (screen==='chapters') el.innerHTML = renderChapters();
+  else if (screen==='groups') el.innerHTML = renderGroups();
+  else if (screen==='quiz') { quizIdx=0; quizResults=[]; quizAnswered=false; quizSelected=null; el.innerHTML = renderQuiz(); }
+  else if (screen==='results') el.innerHTML = renderResults();
+}
+
+function renderHome() {
+  const {totalQ,totalA,totalC,pct,correctPct} = getGlobalStats();
+  const chRows = chapters.map((ch,i) => {
+    const p = getChapterPct(ch.id);
+    const cp = getChapterCorrectPct(ch.id);
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg-card);border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,0.04);animation:slideUp ${0.3+i*0.05}s ease">
+      <span style="font-size:18px;width:28px;text-align:center">${ch.icon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ch.title}</div>
+        <div style="margin-top:6px">${progressBar(p,5,barColor(cp))}</div>
+      </div>
+      <span style="font-size:13px;font-weight:600;color:${p===100?'var(--success)':'var(--text-light)'};min-width:36px;text-align:right">${p}%</span>
+    </div>`;
+  }).join('');
+
+  return `
+    <div style="text-align:center;padding-top:48px;padding-bottom:24px">
+      <div style="font-size:14px;letter-spacing:3px;color:var(--text-light);text-transform:uppercase;font-weight:500;margin-bottom:8px">Bienvenue sur</div>
+      <h1 style="font-family:'Playfair Display',serif;font-size:36px;font-weight:800;color:var(--accent-dark);line-height:1.1">Révisions AIS</h1>
+      <p style="color:var(--text-light);font-size:14px;margin-top:8px">Administrateur d'Infrastructures Sécurisées</p>
+    </div>
+    <div style="background:linear-gradient(135deg,var(--accent-dark) 0%,var(--accent) 100%);border-radius:20px;padding:24px;color:#FDF6F0;margin-bottom:24px;box-shadow:0 8px 32px rgba(93,74,49,0.2);animation:slideUp 0.5s ease">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div>
+          <div style="font-size:13px;opacity:0.8;margin-bottom:4px">Progression globale</div>
+          <div style="font-size:32px;font-weight:700;font-family:'Playfair Display',serif">${pct}%</div>
+        </div>
+        ${progressRing(correctPct,64,6,'#F0E6DA')}
+      </div>
+      <div style="background:rgba(255,255,255,0.2);border-radius:8px;height:8px;overflow:hidden;margin-bottom:12px">
+        <div style="width:${pct}%;height:100%;background:#F0E6DA;border-radius:8px;transition:width 0.6s ease"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;opacity:0.8">
+        <span>${totalA}/${totalQ} questions</span>
+        <span>${totalC} correctes (${correctPct}%)</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:28px">
+      ${[{label:'Chapitres',value:chapters.length,icon:'📚'},{label:'Questions',value:totalQ,icon:'❓'},{label:'Score',value:totalQ>0?Math.round(totalC/totalQ*100)+'%':'0%',icon:'🎯'}].map((s,i)=>`
+      <div style="background:var(--bg-card);border-radius:16px;padding:16px 12px;text-align:center;box-shadow:var(--shadow);animation:slideUp ${0.3+i*0.1}s ease">
+        <div style="font-size:22px;margin-bottom:4px">${s.icon}</div>
+        <div style="font-size:20px;font-weight:700;color:var(--accent-dark)">${s.value}</div>
+        <div style="font-size:11px;color:var(--text-light);margin-top:2px">${s.label}</div>
+      </div>`).join('')}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <button class="btn card-hover" onclick="navigate('chapters')" style="background:var(--bg-card);border-radius:16px;padding:20px 24px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow);animation:slideUp 0.4s ease">
+        <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#E8DDD0,#D4C4AE);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">📖</div>
+        <div style="text-align:left;flex:1">
+          <div style="font-weight:600;font-size:16px;color:var(--text)">Révision par chapitre</div>
+          <div style="font-size:13px;color:var(--text-light);margin-top:2px">${chapters.length} chapitres thématiques</div>
+        </div>
+        <div style="color:var(--text-lighter);font-size:20px">›</div>
+      </button>
+      <button class="btn card-hover" onclick="navigate('groups')" style="background:var(--bg-card);border-radius:16px;padding:20px 24px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow);animation:slideUp 0.5s ease">
+        <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#D4C4AE,#C4A882);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">📝</div>
+        <div style="text-align:left;flex:1">
+          <div style="font-weight:600;font-size:16px;color:var(--text)">Examen par groupe</div>
+          <div style="font-size:13px;color:var(--text-light);margin-top:2px">4 groupes de chapitres</div>
+        </div>
+        <div style="color:var(--text-lighter);font-size:20px">›</div>
+      </button>
+      <button class="btn card-hover" onclick="startGlobalExam()" style="background:linear-gradient(135deg,var(--accent) 0%,var(--accent-dark) 100%);border-radius:16px;padding:20px 24px;color:#FDF6F0;display:flex;align-items:center;gap:16px;box-shadow:0 4px 20px rgba(93,74,49,0.2);animation:slideUp 0.6s ease">
+        <div style="width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🎓</div>
+        <div style="text-align:left;flex:1">
+          <div style="font-weight:600;font-size:16px">Examen Blanc Global</div>
+          <div style="font-size:13px;opacity:0.8;margin-top:2px">40 questions aléatoires</div>
+        </div>
+        <div style="opacity:0.7;font-size:20px">›</div>
+      </button>
+    </div>
+    <div style="margin-top:28px">
+      <div style="font-size:13px;font-weight:600;color:var(--text-light);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px">Progression par chapitre</div>
+      <div style="display:flex;flex-direction:column;gap:8px">${chRows}</div>
+    </div>
+    <button class="btn" onclick="if(confirm('Réinitialiser toute la progression ?')){progress={};saveProgress();navigate('home');}" style="width:100%;margin-top:24px;padding:14px;background:transparent;border:1px solid var(--bg-card-alt);border-radius:12px;color:var(--text-light);font-size:13px;font-weight:500">
+      Réinitialiser la progression
+    </button>`;
+}
+
+function renderChapters() {
+  const rows = chapters.map((ch,i) => {
+    const p = getChapterPct(ch.id);
+    const cp = getChapterCorrectPct(ch.id);
+    return `<button class="btn card-hover" onclick="startChapter('${ch.id}')" style="background:var(--bg-card);border-radius:16px;padding:18px 20px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow);animation:slideUp ${0.2+i*0.05}s ease;text-align:left;width:100%">
+      <div style="font-size:28px;width:44px;text-align:center">${ch.icon}</div>
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:15px;color:var(--text);margin-bottom:4px">${ch.title}</div>
+        <div style="font-size:12px;color:var(--text-light);margin-bottom:8px">${ch.questions.length} questions</div>
+        ${progressBar(p,6,barColor(cp))}
+      </div>
+      <div style="text-align:center;min-width:44px">
+        ${progressRing(cp,44,4,cp>=80?'var(--success)':'var(--accent)')}
+        <div style="font-size:10px;color:var(--text-light);margin-top:2px">${cp}%</div>
+      </div>
+    </button>`;
+  }).join('');
+  return `
+    <button class="btn" onclick="navigate('home')" style="background:none;color:var(--accent);font-size:15px;font-weight:500;padding:20px 0;display:flex;align-items:center;gap:6px">‹ Accueil</button>
+    <h2 style="font-family:'Playfair Display',serif;font-size:26px;font-weight:700;color:var(--accent-dark);margin-bottom:20px">Chapitres</h2>
+    <div style="display:flex;flex-direction:column;gap:12px">${rows}</div>`;
+}
+
+function renderGroups() {
+  const rows = chapterGroups.map((g,i) => {
+    const gChs = chapters.filter(c => g.chapterIds.includes(c.id));
+    const totalQ = gChs.reduce((s,c) => s+c.questions.length, 0);
+    const avgPct = Math.round(g.chapterIds.reduce((s,id) => s+getChapterPct(id), 0) / g.chapterIds.length);
+    const tags = gChs.map(ch => `<span style="font-size:11px;padding:3px 10px;border-radius:20px;background:var(--bg-card-alt);color:var(--text-light)">${ch.icon} ${ch.title}</span>`).join('');
+    return `<button class="btn card-hover" onclick="startGroup('${g.id}')" style="background:var(--bg-card);border-radius:18px;padding:22px 20px;box-shadow:var(--shadow);text-align:left;width:100%;animation:slideUp ${0.2+i*0.1}s ease">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
+        <div style="font-size:28px">${g.icon}</div>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:16px;color:var(--text)">${g.title}</div>
+          <div style="font-size:12px;color:var(--text-light);margin-top:2px">${totalQ} questions • 20 tirées au sort</div>
+        </div>
+        <div style="font-size:22px;font-weight:700;color:var(--accent)">${avgPct}%</div>
+      </div>
+      ${progressBar(avgPct,6)}
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">${tags}</div>
+    </button>`;
+  }).join('');
+  return `
+    <button class="btn" onclick="navigate('home')" style="background:none;color:var(--accent);font-size:15px;font-weight:500;padding:20px 0;display:flex;align-items:center;gap:6px">‹ Accueil</button>
+    <h2 style="font-family:'Playfair Display',serif;font-size:26px;font-weight:700;color:var(--accent-dark);margin-bottom:20px">Examens par groupe</h2>
+    <div style="display:flex;flex-direction:column;gap:14px">${rows}</div>`;
+}
+
+function renderQuiz() {
+  return `<div id="quiz-inner"></div>`;
+}
+
+function renderQuizQuestion() {
+  const el = document.getElementById('quiz-inner');
+  if (!el) return;
+  const { title, questions } = quizData;
+  const q = questions[quizIdx];
+  const pct = Math.round(quizIdx / questions.length * 100);
+
+  const optButtons = q.options.map((opt, oi) => {
+    let extra = '';
+    if (quizAnswered) {
+      if (oi === q.answer) extra = 'correct';
+      else if (oi === quizSelected && oi !== q.answer) extra = 'wrong';
+    }
+    const labelBg = quizAnswered && oi===q.answer ? 'var(--success)' : quizAnswered && oi===quizSelected ? 'var(--error)' : 'var(--bg-card-alt)';
+    const labelColor = quizAnswered && (oi===q.answer||oi===quizSelected) ? '#fff' : 'var(--text-light)';
+    return `<button class="option-btn ${extra}" ${quizAnswered?'disabled':''} onclick="selectAnswer(${oi})" style="animation:slideUp ${0.2+oi*0.06}s ease">
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;margin-right:12px;font-size:13px;font-weight:600;background:${labelBg};color:${labelColor};transition:all 0.25s ease;flex-shrink:0">${String.fromCharCode(65+oi)}</span>${opt}
+    </button>`;
+  }).join('');
+
+  let explainBox = '';
+  if (quizAnswered && quizSelected !== null && quizSelected !== q.answer && q.explain) {
+    explainBox = `<div class="explanation-box wrong-explain">
+      <div style="font-weight:600;color:var(--error);margin-bottom:6px;font-size:13px">❌ Mauvaise réponse</div>
+      <div style="font-size:13px;color:var(--text);line-height:1.55">${q.explain}</div>
+      <div style="margin-top:8px;font-size:13px;color:var(--success);font-weight:600">✅ Bonne réponse : ${q.options[q.answer]}</div>
+    </div>`;
+  }
+
+  const nextBtn = quizAnswered ? `<button class="btn" onclick="nextQuestion()" style="width:100%;padding:16px;border-radius:14px;margin-top:20px;background:linear-gradient(135deg,var(--accent) 0%,var(--accent-dark) 100%);color:#FDF6F0;font-size:16px;font-weight:600;box-shadow:0 4px 16px rgba(93,74,49,0.2);animation:pop 0.3s ease">
+    ${quizIdx+1 >= questions.length ? 'Voir les résultats 🎯' : 'Question suivante →'}
+  </button>` : '';
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;padding-top:20px;padding-bottom:16px">
+      <button class="btn" onclick="openQuitModal()" style="background:none;color:var(--accent);font-size:22px;padding:4px 8px;line-height:1;border-radius:8px;border:1.5px solid var(--bg-card-alt)">✕</button>
+      <div style="flex:1">${progressBar(pct,8)}</div>
+      <span style="font-size:14px;font-weight:600;color:var(--accent);min-width:50px;text-align:right">${quizIdx+1}/${questions.length}</span>
+    </div>
+    <div style="font-size:12px;color:var(--text-light);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px">${title}</div>
+    <div key="${quizIdx}" style="background:var(--bg-card);border-radius:20px;padding:24px;margin-bottom:20px;box-shadow:var(--shadow);animation:pop 0.35s ease">
+      <div style="font-size:17px;font-weight:600;line-height:1.5;color:var(--text)">${q.q}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${optButtons}
+    </div>
+    ${explainBox}
+    ${nextBtn}`;
+}
+
+function selectAnswer(oi) {
+  if (quizAnswered) return;
+  quizSelected = oi;
+  quizAnswered = true;
+  const q = quizData.questions[quizIdx];
+  const correct = oi === q.answer;
+  quizResults.push({ correct });
+  if (quizData.mode === 'chapter' && q.chId !== undefined) {
+    updateProgress(q.chId, q.origIdx, correct);
+  }
+  renderQuizQuestion();
+}
+
+function nextQuestion() {
+  if (quizIdx+1 >= quizData.questions.length) {
+    navigate('results', { ...quizData, results: quizResults });
+    return;
+  }
+  quizIdx++;
+  quizAnswered = false;
+  quizSelected = null;
+  renderQuizQuestion();
+}
+
+function renderResults() {
+  const { title, results, questions } = quizData;
+  const correct = results.filter(r=>r.correct).length;
+  const total = results.length;
+  const pct = Math.round((correct/total)*100);
+  const grade = pct>=80?'Excellent !':pct>=60?'Bien !':pct>=40?'À revoir':'À travailler';
+  const gradeColor = pct>=80?'var(--success)':pct>=60?'var(--warning)':'var(--error)';
+  const gradeEmoji = pct>=80?'🏆':pct>=60?'👍':pct>=40?'📖':'💪';
+
+  const reviewItems = results.map((r,i) => {
+    const q = questions[i];
+    return `<div style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:var(--bg-card);border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,0.04);border-left:3px solid ${r.correct?'var(--success)':'var(--error)'};animation:slideUp ${0.2+i*0.03}s ease">
+      <span style="font-size:16px;flex-shrink:0;margin-top:1px">${r.correct?'✅':'❌'}</span>
+      <div style="flex:1">
+        <div style="font-size:13px;color:var(--text);line-height:1.4">${q?.q?.substring(0,80)}${q?.q?.length>80?'...':''}</div>
+        ${!r.correct && q?.explain ? `<div style="font-size:12px;color:var(--text-light);margin-top:4px;line-height:1.4">💡 ${q.explain.substring(0,120)}...</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  return `
+    <div style="text-align:center;padding-top:48px;padding-bottom:20px;animation:pop 0.5s ease">
+      <div style="font-size:60px;margin-bottom:8px">${gradeEmoji}</div>
+      <h2 style="font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:var(--accent-dark);margin-bottom:6px">${grade}</h2>
+      <p style="color:var(--text-light);font-size:14px">${title}</p>
+    </div>
+    <div style="background:var(--bg-card);border-radius:20px;padding:28px;text-align:center;box-shadow:var(--shadow-lg);margin-bottom:24px;animation:slideUp 0.4s ease">
+      <div style="position:relative;display:inline-block;margin-bottom:16px">
+        ${progressRing(pct,120,10,gradeColor)}
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <span style="font-size:32px;font-weight:700;color:${gradeColor}">${pct}%</span>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:center;gap:32px">
+        <div><div style="font-size:24px;font-weight:700;color:var(--success)">${correct}</div><div style="font-size:12px;color:var(--text-light)">Correctes</div></div>
+        <div style="width:1px;background:var(--bg-card-alt)"></div>
+        <div><div style="font-size:24px;font-weight:700;color:var(--error)">${total-correct}</div><div style="font-size:12px;color:var(--text-light)">Incorrectes</div></div>
+      </div>
+    </div>
+    <div style="font-size:13px;font-weight:600;color:var(--text-light);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px">Résumé des réponses</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:24px">${reviewItems}</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button class="btn" onclick="navigate('home')" style="width:100%;padding:16px;border-radius:14px;background:linear-gradient(135deg,var(--accent) 0%,var(--accent-dark) 100%);color:#FDF6F0;font-size:16px;font-weight:600;box-shadow:0 4px 16px rgba(93,74,49,0.2)">Retour à l'accueil</button>
+      <button class="btn" onclick="restartQuiz()" style="width:100%;padding:14px;border-radius:14px;background:transparent;border:2px solid var(--accent-light);color:var(--accent);font-size:15px;font-weight:600">Recommencer 🔄</button>
+    </div>`;
+}
+
+// ─── ACTIONS ──────────────────────────────────────────────────────────────────
+function startChapter(chId) {
+  const ch = chapters.find(c => c.id===chId);
+  const qs = shuffle(ch.questions.map((q,idx) => ({...q, chId:ch.id, origIdx:idx})));
+  navigate('quiz', { title:ch.title, questions:qs, mode:'chapter', chapterId:ch.id });
+}
+function startGroup(gId) {
+  const g = chapterGroups.find(g => g.id===gId);
+  const gChs = chapters.filter(c => g.chapterIds.includes(c.id));
+  const qs = [];
+  gChs.forEach(ch => ch.questions.forEach((q,idx) => qs.push({...q, chId:ch.id, origIdx:idx})));
+  navigate('quiz', { title:`Examen : ${g.title}`, questions:shuffle(qs).slice(0,20), mode:'group-exam' });
+}
+function startGlobalExam() {
+  const allQ = [];
+  chapters.forEach(ch => ch.questions.forEach((q,i) => allQ.push({...q, chId:ch.id, origIdx:i})));
+  navigate('quiz', { title:'Examen Blanc Global', questions:shuffle(allQ).slice(0,40), mode:'exam' });
+}
+function restartQuiz() {
+  const qs = shuffle(quizData.questions);
+  navigate('quiz', { ...quizData, questions:qs });
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+loadProgress();
+renderScreen('home');
+document.getElementById('screen-home').classList.add('active');
+
+// Render first quiz question after navigate to quiz
+const _origNavigate = navigate;
+window.navigate = function(to, data) {
+  _origNavigate(to, data);
+  if (to === 'quiz') {
+    setTimeout(() => renderQuizQuestion(), 0);
+  }
+};
+navigate('home');
+</script>
+</body>
+</html>
